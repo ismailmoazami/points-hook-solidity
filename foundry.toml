@@ -3,4 +3,18 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+solc_version = '0.8.26'
+evm_version = "cancun"
+optimizer_runs = 800
+via_ir = false
+ffi = true
+
+remapings = [
+    "v4-periphery=/lib/v4-periphery",
+    "solmate=/lib/solmate/",
+    "v4-core=/lib/v4-core",
+]
+
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
