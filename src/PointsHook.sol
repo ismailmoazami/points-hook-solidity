@@ -19,7 +19,7 @@ contract PointsHook is BaseHook, ERC20 {
 
     uint256 public constant INITIAL_REFERAL_POINTS = 500e18;
 
-    mapping(address user => address referer) public referedBy;
+    mapping(address user => address referer) public referredBy;
 
     constructor(IPoolManager _manager, address _token) BaseHook(_manager) ERC20("POINTS", "POINTS", 18) {}
 
@@ -77,42 +77,45 @@ contract PointsHook is BaseHook, ERC20 {
     function afterAddLiquidity(
         address,
         PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata liquidityParams,
+        IPoolManager.ModifyLiquidityParams calldata,
         BalanceDelta delta,
         BalanceDelta,
         bytes calldata hookData
-    ) external override returns (bytes4, BalanceDelta) {
+    ) external override onlyPoolManager returns (bytes4, BalanceDelta) {
         if(!key.currency0.isAddressZero()) {
-            return;
+            return(this.afterAddLiquidity.selector, delta);
         }
 
-        
+        uint256 points = uint256(int256(-delta.amount0()));
+
+        _mintPoints(hookData, points);
+
+        return(this.afterAddLiquidity.selector, delta);
+
     }
 
     // Internal functions
     function _mintPoints(bytes memory _hookData, uint256 _points) internal {
-        (address user, address referer) = abi.decode(_hookData, (address, address));
-
-        if(referedBy[user] == referer) {
-            uint256 refererPointToMint = _points / 5;
-            _mint(user, _points);
-            _mint(referer, refererPointToMint);
+        if(_hookData.length == 0) {
             return;
         }
+        (address user, address referrer) = abi.decode(_hookData, (address, address));
 
-        if(referer != address(0)) {
-            uint256 refererPointToMint = _points / 5; 
-            _mint(user, _points);
-            _mint(referer, refererPointToMint + INITIAL_REFERAL_POINTS);
-            return;
+        if(referredBy[user] == address(0) && referrer != address(0)) {
+            referredBy[user] = referrer;
+            _mint(referrer, INITIAL_REFERAL_POINTS);
+        }
+
+        if(referredBy[user] != address(0)) {
+            _mint(referrer, _points / 10);
         }
 
         _mint(user, _points);
     }
 
     // View and Pure functions 
-    function getHookData(address user, address referer) public pure returns (bytes memory) {
-        return abi.encode(user, referer);
+    function getHookData(address user, address referrer) public pure returns (bytes memory) {
+        return abi.encode(user, referrer);
     }
 
 }
