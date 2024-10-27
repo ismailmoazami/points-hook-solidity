@@ -51,6 +51,59 @@ contract PointsHookTest is Test, Deployers {
         (key, ) = initPool(ethAddress, tokenCurrency, hook, 3000, SQRT_PRICE_1_1);
         
     }
+
+    function test_can_add_liquidity_and_swap() external {
+        uint256 startingPoints = token.balanceOf(address(this));
+        console.log("BeforeAddLiquidity: ", startingPoints);
+        bytes memory hookData = hook.getHookData(address(this), address(0));
+
+        uint160 sqrtPriceAtTickLower  = TickMath.getSqrtPriceAtTick(-60);
+        uint160 sqrtPriceAtTickHigher = TickMath.getSqrtPriceAtTick(60);
+
+        uint256 ethToAdd = 0.1 ether;
+        uint128 liquidityDelta = LiquidityAmounts.getLiquidityForAmount0(
+            sqrtPriceAtTickLower,
+            SQRT_PRICE_1_1,
+            ethToAdd
+        );
+
+        uint256 tokenToAdd = LiquidityAmounts.getAmount1ForLiquidity(
+            sqrtPriceAtTickLower,
+            SQRT_PRICE_1_1,
+            liquidityDelta
+            );
+
+        modifyLiquidityRouter.modifyLiquidity{value: ethToAdd}(
+            key, 
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -60,
+                tickUpper: 60,
+                liquidityDelta: int256(uint256(liquidityDelta)),
+                salt: bytes32(0)
+            }),
+            hookData
+        );
+
+        uint256 endingPoints = token.balanceOf(address(this)); 
+        console.log("AfterAddLiquidity: ", endingPoints);
+        assertApproxEqAbs(startingPoints - endingPoints, 0.1 ether, 0.001 ether);
+
+        swapRouter.swap{value: 0.001 ether} (
+            key, 
+            IPoolManager.SwapParams({
+                zeroForOne: true,
+                amountSpecified: -0.001 ether,
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        uint256 expected = 0.001 ether / 5;
+        uint256 pointsAfterSwap = token.balanceOf(address(this)); 
+        console.log("pointsAfterSwap", pointsAfterSwap);
+        assertEq(pointsAfterSwap - endingPoints, expected);
+    }
     
 
 }
